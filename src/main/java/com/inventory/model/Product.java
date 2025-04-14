@@ -42,6 +42,7 @@ public class Product {
     private Inventory inventory;
 
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL)
+    @JsonBackReference("product-orderitems")
     @Builder.Default
     private List<OrderItem> orderItems = new ArrayList<>();
 }

@@ -5,6 +5,7 @@ import com.inventory.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -12,8 +13,7 @@ import java.util.List;
 public class OrderService {
     @Autowired
     private OrderRepository orderRepository;
-    @Autowired
-    private OrderItemRepository orderItemRepository;
+
     @Autowired
     private InventoryRepository inventoryRepository;
 
@@ -34,25 +34,40 @@ public class OrderService {
         orderRepository.deleteById(id);
     }
 
-    // Order processing
+    // Create order and update inventory
     @Transactional
     public Order createOrder(Order order) {
         order.setOrderDate(LocalDateTime.now());
-        order.setStatus("PENDING");
+        order.setStatus("COMPLETED");
+
+        // Set 'order' reference in all OrderItems
+        for (OrderItem item : order.getOrderItems()) {
+            item.setOrder(order);
+        }
+
         Order savedOrder = orderRepository.save(order);
 
         updateInventory(savedOrder);
         return savedOrder;
     }
 
-    // Inventory update helper
+    // Inventory update for PURCHASE or SALE
     private void updateInventory(Order order) {
         for (OrderItem item : order.getOrderItems()) {
-            Inventory inventory = inventoryRepository.findByProductId(item.getProduct().getId());
+            Product product = item.getProduct();
+            Inventory inventory = inventoryRepository.findByProductId(product.getId());
+
             if (inventory != null) {
-                inventory.setQuantityAvailable(
-                        inventory.getQuantityAvailable() - item.getQuantity()
-                );
+                int quantity = inventory.getQuantityAvailable();
+                int change = item.getQuantity();
+
+                // If SALE: reduce stock, If PURCHASE: increase stock
+                if (order.getOrderType().equalsIgnoreCase("SALE")) {
+                    inventory.setQuantityAvailable(quantity - change);
+                } else if (order.getOrderType().equalsIgnoreCase("PURCHASE")) {
+                    inventory.setQuantityAvailable(quantity + change);
+                }
+
                 inventoryRepository.save(inventory);
             }
         }
@@ -65,5 +80,9 @@ public class OrderService {
 
     public List<Order> getCompletedOrders() {
         return orderRepository.findByStatus("COMPLETED");
+    }
+
+    public List<Order> getOrdersByContactName(String name) {
+        return orderRepository.findByContactNameContainingIgnoreCase(name);
     }
 }
